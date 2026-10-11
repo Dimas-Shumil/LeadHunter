@@ -1,0 +1,3 @@
+ИСТОРИЧЕСКИЙ ОТЧЁТ ПО v0.2 PostgreSQL/PGlite. НЕ ТЕСТ SQLITE v0.3.
+
+UI PASS: login, create/edit, manual evidence, score, note, task, CRM, unconfigured search, settings, 390px mobile pages/dialog, logout. No page errors. PostgreSQL protocol endpoint: PGlite (isolated fixtures, not native PostgreSQL).

@@ -1,0 +1,195 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum CrmStatus {
+  NEW
+  REVIEW
+  QUALIFIED
+  IN_PROGRESS
+  DISCUSSION
+  CLIENT
+  REJECTED
+  ARCHIVED
+}
+
+enum WebsiteStatus {
+  NOT_FOUND
+  UNCHECKED
+  AVAILABLE
+  ISSUES
+  UNAVAILABLE
+  BLOCKED
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  role         String    @default("OWNER")
+  sessions     Session[]
+  createdAt    DateTime  @default(now())
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  csrf      String
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+model Company {
+  id                    String               @id @default(cuid())
+  name                  String
+  normalizedName        String
+  city                  String
+  region                String               @default("")
+  niche                 String
+  address               String               @default("")
+  inn                   String?              @unique
+  ogrn                  String?              @unique
+  website               String?
+  domain                String?
+  phone                 String?
+  email                 String?
+  contactBasis          String               @default("")
+  websiteStatus         WebsiteStatus        @default(NOT_FOUND)
+  noWebsiteConfirmed    Boolean              @default(false)
+  active                Boolean?
+  activeEvidence        String               @default("")
+  highTicket            Boolean?
+  highTicketEvidence    String               @default("")
+  automation            Boolean?
+  automationEvidence    String               @default("")
+  productFit            Boolean?
+  productFitEvidence    String               @default("")
+  manualWebsiteNeed     Boolean?
+  manualWebsiteEvidence String               @default("")
+  score                 Int                  @default(0)
+  scoreDetails          Json                 @default("[]")
+  crmStatus             CrmStatus            @default(NEW)
+  product               String               @default("Мини-платформа 30 000 ₽")
+  negotiationResult     String               @default("")
+  lastContactAt         DateTime?
+  revision              Int                  @default(0)
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  sources               CompanySource[]
+  audits                WebsiteAudit[]
+  notes                 Note[]
+  tasks                 Task[]
+  history               Activity[]
+  duplicates            DuplicateCandidate[] @relation("candidate")
+  matchedDuplicates     DuplicateCandidate[] @relation("matched")
+
+  @@index([city, niche])
+  @@index([score, crmStatus])
+  @@index([normalizedName, city])
+  @@index([domain])
+}
+
+model CompanySource {
+  id         String   @id @default(cuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  provider   String
+  externalId String?
+  sourceUrl  String   @default("")
+  license    String   @default("")
+  updatedAt  DateTime @default(now())
+
+  @@unique([provider, externalId])
+  @@index([companyId])
+}
+
+model WebsiteAudit {
+  id        String        @id @default(cuid())
+  companyId String
+  company   Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  website   String
+  status    WebsiteStatus
+  metrics   Json
+  issues    Json
+  createdAt DateTime      @default(now())
+
+  @@index([companyId, createdAt])
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  text      String
+  createdAt DateTime @default(now())
+}
+
+model Task {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title     String
+  dueAt     DateTime
+  done      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([done, dueAt])
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  type      String
+  details   Json
+  createdAt DateTime @default(now())
+}
+
+model DuplicateCandidate {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation("candidate", fields: [companyId], references: [id], onDelete: Cascade)
+  matchedId String
+  matched   Company @relation("matched", fields: [matchedId], references: [id], onDelete: Cascade)
+  reason    String
+
+  @@unique([companyId, matchedId])
+}
+
+model Job {
+  id              String    @id @default(cuid())
+  type            String
+  status          JobStatus @default(QUEUED)
+  payload         Json
+  progress        Json      @default("{}")
+  error           String?
+  cancelRequested Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  heartbeatAt     DateTime?
+
+  @@index([status, createdAt])
+}
+
+// Internal mutex row: update at the start of critical write transactions.
+model SqliteWriteLock {
+  id       Int @id
+  revision Int @default(0)
+
+  @@map("_WriteLock")
+}

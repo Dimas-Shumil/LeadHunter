@@ -1,0 +1,13 @@
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
+.tmp/
+test-results/
+
+# Local SQLite and journal files
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*

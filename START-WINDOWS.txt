@@ -1,0 +1,43 @@
+SHUMDEV LEAD HUNTER v0.3 — SQLITE / АВТОПОИСК
+==============================================
+
+ВАЖНО: PostgreSQL, pgAdmin, Docker не нужны!
+Нужен Node.js 24 x64 и интернет для npm и внешнего поиска организаций.
+
+1) Распакуйте папку shumdev-lead-hunter в C:\Work\shumdev-lead-hunter.
+   Важно: команды выполняйте ВНУТРИ папки, где лежит package.json.
+
+2) В CMD:
+   cd /d C:\Work\shumdev-lead-hunter
+   node -v
+   copy .env.example .env
+   npm install
+   npm run db:generate
+   npm run db:deploy
+   npm run owner:create
+   npm run build
+   npm run dev
+
+3) Во втором окне CMD:
+   cd /d C:\Work\shumdev-lead-hunter
+   npm run worker
+
+4) Откройте http://localhost:3000, войдите по email и паролю OWNER.
+5) В разделе «Поиск организаций»: Автопоиск / Абакан / Грузоперевозки / 20.
+   Без API-ключей используется OpenStreetMap/Overpass — запросы идут через интернет.
+   2ГИС и Яндекс требуют свои ключи и разрешённый способ использования.
+
+База автоматически создаётся при миграции в prisma\dev.db.
+SQLite поддерживает один процесс записи одновременно: НЕ запускайте
+несколько worker, в стандартном варианте достаточно одного.
+
+Для резервной копии:
+   npm run db:backup
+Файлы в prisma\backups\, не добавлять их в git.
+
+Тестирование:
+   npm test
+Внимание: нет корректного package-lock.json из-за недоступности
+npm-реестра в среде сборки архива; npm install создаст новый lock-файл.
+Не запускайте npm ci ДО первого npm install.
+Подробнее: README.md и docs/TESTING.md.

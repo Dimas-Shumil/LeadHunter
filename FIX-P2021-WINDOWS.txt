@@ -1,0 +1,49 @@
+SHUMDEV LEAD HUNTER — FIX Prisma P2021 / Windows
+=================================================
+
+Проблема: Prisma Migrate создал таблицы в корневом dev.db,
+а приложение открыло пустой prisma/dev.db.
+Причина: prisma.config.ts переписывал DATABASE_URL на file:./dev.db.
+
+ВАЖНО: останавливайте npm run dev и npm run worker перед копированием.
+Команды ниже предназначены для СЛУЧАЯ, когда корневой dev.db содержит
+таблицы (например, 163840 байт), а prisma/dev.db пустой (0 байт).
+Не выполняйте копирование, если у вас обе базы содержат данные!
+
+1) Откройте CMD в корне LeadHunter (там должен лежать package.json):
+
+  cd /d "C:\Users\Павел.DESKTOP-JFFFGLC\Work\LeadHunter"
+
+2) Сохраните копию работающей базы и скопируйте её в prisma:
+
+  copy /Y dev.db dev.db.backup-before-p2021
+  copy /Y dev.db prisma\dev.db
+
+3) Распакуйте этот патч поверх проекта (ZIP из папки Загрузки):
+
+  tar -xf "%USERPROFILE%\Downloads\shumdev-lead-hunter-sqlite-p2021-hotfix.zip" -C .
+
+   Заменится только prisma.config.ts и файл tests/sqlite.test.js.
+   Ваши .env, node_modules и БД не входят в архив.
+
+4) Убедитесь, что в .env:
+
+  DATABASE_URL=file:./prisma/dev.db
+
+5) Запустите:
+
+  npm run db:deploy
+  npx prisma migrate status
+  npm test
+  npm run owner:create
+
+После успешного создания владельца:
+  npm run build
+  npm run dev
+
+Во втором CMD:
+  npm run worker
+
+После проверки приложения сохраните резервную копию dev.db.backup-before-p2021.
+Не удаляйте исходную dev.db до полной проверки, что новые данные появляются
+в prisma/dev.db. Никаких migrate reset или db push --force-reset!
