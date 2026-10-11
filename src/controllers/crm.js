@@ -81,3 +81,54 @@ export async function tasks(req, res) {
     }),
   );
 }
+
+// A sales inquiry is a manually registered business request, not a directory result.
+export const inquiryStatuses = ["NEW", "IN_PROGRESS", "WAITING", "WON", "LOST"];
+export const inquirySources = ["PHONE", "TELEGRAM", "VK", "WHATSAPP", "EMAIL", "WEBSITE", "OTHER"];
+const inquirySchema = z.object({
+  title: z.string().trim().min(2).max(200),
+  details: z.string().trim().max(4000).default(""),
+  source: z.enum(inquirySources).default("OTHER"),
+  status: z.enum(inquiryStatuses).default("NEW"),
+  amount: z.number().int().min(0).max(100000000).nullable().default(null),
+});
+export async function createInquiry(req, res) {
+  const input = inquirySchema.parse(req.body);
+  const company = await db.company.findUnique({ where: { id: req.params.id }, select: { id: true } });
+  if (!company) throw new HttpError(404, "Организация не найдена");
+  const result = await db.$transaction(async tx => {
+    const created = await tx.inquiry.create({ data: { ...input, companyId: company.id } });
+    await tx.activity.create({ data: { companyId: company.id, type: "INQUIRY_CREATED", details: { id: created.id, title: created.title, status: created.status } } });
+    return created;
+  });
+  res.status(201).json(result);
+}
+export async function listInquiries(req, res) {
+  const status = String(req.query.status || "");
+  if (status && !inquiryStatuses.includes(status)) throw new HttpError(400, "Неизвестный статус заявки");
+  res.json(await db.inquiry.findMany({
+    where: status ? { status } : {},
+    orderBy: { createdAt: "desc" },
+    take: 250,
+    include: { company: { select: { id: true, name: true, city: true, phone: true } } },
+  }));
+}
+export async function updateInquiry(req, res) {
+  const patch = z.object({ status: z.enum(inquiryStatuses) }).parse(req.body);
+  const inquiry = await db.inquiry.findUnique({ where: { id: req.params.id } });
+  if (!inquiry) throw new HttpError(404, "Заявка не найдена");
+  res.json(await db.$transaction(async tx => {
+    const updated = await tx.inquiry.update({ where: { id: inquiry.id }, data: patch });
+    await tx.activity.create({ data: { companyId: inquiry.companyId, type: "INQUIRY_UPDATED", details: { id: inquiry.id, from: inquiry.status, to: patch.status } } });
+    return updated;
+  }));
+}
+
+export async function createStandaloneTask(req, res) {
+  const data = z.object({ companyId: z.string().min(1).max(100), title: z.string().trim().min(1).max(300), dueAt: z.iso.datetime() }).parse(req.body);
+  const company = await db.company.findUnique({ where: { id: data.companyId }, select: { id: true } });
+  if (!company) throw new HttpError(404, "Выбранная организация не найдена");
+  req.params.id = company.id;
+  req.body = { title: data.title, dueAt: data.dueAt };
+  return addTask(req, res);
+}

@@ -9,6 +9,8 @@ import {
   options,
   toast,
   link,
+  inquiryStatuses,
+  inquirySources,
 } from "./api.js";
 import { openCompany } from "./company.js";
 const app = document.querySelector("#app");
@@ -33,13 +35,15 @@ const headings = {
   ],
   search: [
     "Поиск организаций",
-    "Ищите клиентов автоматически через 2ГИС, Яндекс и OpenStreetMap",
+    "Ищите организации через 2ГИС и OpenStreetMap",
   ],
   companies: [
     "База клиентов",
     "Проверяйте организации, оценивайте потенциал и сохраняйте контакты",
   ],
   crm: ["CRM", "Ведите переговоры и планируйте следующие действия"],
+  inquiries: ["Заявки", "Учитывайте обращения и этапы продаж"],
+  tasks: ["Задачи", "Планируйте звонки и отмечайте выполненное"],
   settings: [
     "Настройки и источники",
     "Подключения, правила оценки и возможности приложения",
@@ -103,7 +107,7 @@ async function render() {
     }
   };
   try {
-    await { overview, search, companies, crm, settings: settingsPage }[route](
+    await { overview, search, companies, crm, inquiries, tasks, settings: settingsPage }[route](
       version,
     );
   } catch (e) {
@@ -189,9 +193,9 @@ async function companies(version) {
 async function search() {
   const ready = settings.sources.filter((s) => s.status === "READY");
   const dgisEnabled = settings.sources.some((s) => s.id === "2gis" && s.status !== "NOT_CONFIGURED");
-  const yandexEnabled = settings.sources.some((s) => s.id === "yandex" && s.status !== "NOT_CONFIGURED");
+  const yandexEnabled = false; // paid Yandex API deliberately disabled
   const dgisCanSave = settings.sources.some(s => s.id === "2gis" && s.status === "READY");
-  const yandexCanSave = settings.sources.some(s => s.id === "yandex" && s.status === "READY");
+  const yandexCanSave = false;
   const groups = settings.nicheGroups || [{ name: "Все направления", items: settings.niches.map(name => ({ name, osm: true })) }];
   const groupedCheckboxes = groups.map((group, index) => `
     <details class="niche-group" ${index === 0 ? "open" : ""}>
@@ -199,7 +203,7 @@ async function search() {
       <div class="niche-group__grid">
         ${group.items.map(item => `<label class="form__check niche-item" data-label="${esc(item.name.toLocaleLowerCase("ru"))}">
           <input type="checkbox" name="niche" value="${esc(item.name)}" data-osm="${item.osm ? "yes" : "no"}">
-          <span>${esc(item.name)}${item.osm ? "" : ' <small title="Для этой категории нет надёжного OSM-тега">· 2ГИС/Яндекс</small>'}</span>
+          <span>${esc(item.name)}${item.osm ? "" : ' <small title="Для этой категории нет надёжного OSM-тега">· 2ГИС</small>'}</span>
         </label>`).join("")}
       </div>
     </details>`).join("");
@@ -222,18 +226,18 @@ async function search() {
       </div>
       <label class="form__check"><input type="checkbox" name="audit">Проверять известные сайты после импорта/разрешённого сохранения (долго)</label>
       <div class="search-actions">
-        <button type="button" id="preview-2gis" ${dgisEnabled ? "" : "disabled"}>Посмотреть 2ГИС</button><button type="button" id="preview-yandex" class="button--secondary" ${yandexEnabled ? "" : "disabled"}>Посмотреть Яндекс</button>
+        <button type="button" id="preview-2gis" ${dgisEnabled ? "" : "disabled"}>Посмотреть 2ГИС</button>
         <button type="submit" class="button--secondary" ${ready.length ? "" : "disabled"}>Запустить импорт в CRM</button>
       </div>
       <label class="form__check"><input type="checkbox" name="savePreview" id="save-preview">Автоматически сохранять показанную страницу в CRM (только при разрешённом хранении)</label>
-      <small>Автосохранение доступно для 2ГИС: ${dgisCanSave ? "разрешено настройками" : "нет подтверждённых прав"}; Яндекс: ${yandexCanSave ? "разрешено настройками" : "нет прав"}. При отсутствии прав работает только временный просмотр.</small>
-      <small>${dgisEnabled ? "Предпросмотр не требует воркера. Для поиска по имени достаточно одной фразы. Если выбрано несколько ниш, предпросмотр использует первую." : "Добавь DGIS_API_KEY или YANDEX_MAPS_API_KEY в .env и перезапусти сервер для предпросмотра."}</small>
+      <small>Автосохранение доступно для 2ГИС: ${dgisCanSave ? "разрешено настройками" : "нет подтверждённых прав"}; Яндекс: ${yandexCanSave ? "разрешено настройками" : "нет прав"}. При отсутствии прав работает только временный просмотр. Уточняйте контакты в открытой карточке компании.</small>
+      <small>${dgisEnabled ? "Предпросмотр не требует воркера. Для поиска по имени достаточно одной фразы. Если выбрано несколько ниш, предпросмотр использует первую." : "Добавь DGIS_API_KEY в .env и перезапусти сервер для предпросмотра."}</small>
       <small>При выборе «Сайт не указан» компании с сайтом, например «Эвакуатор19», будут исключены. Для проверки полноты ставь «Любой».</small>
     </form></section>
     <section class="panel"><h2>Импорт CSV / XLSX</h2><p><small>До 5 МБ и 5000 строк. CSV в UTF-8.</small></p>
       <form id="import-form" class="form"><label>Файл<input type="file" name="file" accept=".csv,.xlsx" required></label><label>Город по умолчанию<input name="city" placeholder="Если не указан в файле" required></label><label>Ниша по умолчанию<select name="niche">${options(Object.fromEntries(settings.niches.map(n => [n,n])))}</select></label><label>Источник и основание хранения контактов<textarea name="contactBasis" required minlength="5" maxlength="1000" placeholder="Например: собственная база; разрешённые деловые контакты"></textarea></label><label>Разрешение на использование базы<textarea name="license" required minlength="5" maxlength="1000" placeholder="Условия лицензии, договора или описание собственной базы"></textarea></label><label class="form__check"><input type="checkbox" name="audit">Проверить сайты</label><button>Импортировать</button></form><p><a href="/import-template.csv" download>Скачать шаблон CSV</a></p></section>
     </div>
-    <section class="panel" id="preview-panel"><div class="panel__header"><h2 id="preview-heading">Выдача каталогов — просмотр и разрешённый импорт</h2><span id="preview-count" class="badge">Нет запроса</span></div><div id="preview-results"><p>Нажми «Посмотреть 2ГИС» или «Посмотреть Яндекс». При наличии прав можно включить сохранение в CRM.</p></div><div class="pagination" id="preview-pagination" hidden><span id="preview-page"></span><div class="actions"><button type="button" class="button--secondary" id="preview-prev">Назад</button><button type="button" id="preview-next">Следующая страница</button></div></div></section>
+    <section class="panel" id="preview-panel"><div class="panel__header"><h2 id="preview-heading">Выдача каталогов — просмотр и разрешённый импорт</h2><span id="preview-count" class="badge">Нет запроса</span></div><div id="preview-results"><p>Нажми «Посмотреть 2ГИС» . При наличии прав можно включить сохранение в CRM.</p></div><div class="pagination" id="preview-pagination" hidden><span id="preview-page"></span><div class="actions"><button type="button" class="button--secondary" id="preview-prev">Назад</button><button type="button" id="preview-next">Следующая страница</button></div></div></section>
     <section class="panel"><div class="panel__header"><h2>Фоновые задания</h2><button id="refresh-jobs" class="button--secondary">Обновить</button></div><div id="jobs"></div></section>`;
 
   const form = document.querySelector("#search-form");
@@ -285,7 +289,7 @@ async function search() {
       if (!free && !chosenItems.length) return toast("Укажи название компании, услугу или выбери нишу");
       previewQuery = { city: fd.get("city"), region: fd.get("region"), query: free, niche: chosenItems[0]?.value || "", website: fd.get("website"), source };
     }
-    const buttons = [document.querySelector("#preview-2gis"), document.querySelector("#preview-yandex")];
+    const buttons = [document.querySelector("#preview-2gis")];
     buttons.forEach(b => b.disabled = true);
     document.querySelector("#preview-results").innerHTML = "<p>Получаем организации из каталога…</p>";
     try {
@@ -298,7 +302,7 @@ async function search() {
       if (data.saved) toast(`CRM: новых ${data.saved.new}, дубликатов ${data.saved.duplicates}, проверок ${data.saved.auditsQueued}, ошибок ${data.saved.errors}`);
       document.querySelector("#preview-results").innerHTML = `
         <div class="notice">${esc(data.geoNote)}. ${esc(data.disclaimer)} ${data.websiteFilter !== "any" ? "Фильтр сайта может исключать искомую компанию." : ""}</div>
-        ${data.items.length ? `<div class="preview-list">${data.items.map(c => `<div class="preview-item"><div><strong>${esc(c.name)}</strong><small>${esc(c.address || "Адрес не предоставлен")}</small></div><div><a href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">Открыть карточку</a>${c.website ? `<br>${link(c.website, "Сайт")}` : ""}${c.phone ? `<br><small>☎ ${esc(c.phone)} · формат проверен, дозвон не выполнялся</small>` : `<br><small>Телефон: ${esc(c.phoneStatus || "не предоставлен")}</small>`}</div></div>`).join("")}</div>` : '<p>На этой странице совпадений нет. Попробуй «Любой сайт», другие формулировки или страницу 1.</p>'}
+        ${data.items.length ? `<div class="preview-list">${data.items.map(c => `<div class="preview-item"><div><strong>${esc(c.name)}</strong><small>${esc(c.address || "Адрес не предоставлен")}</small></div><div><a href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">Открыть карточку</a><br><a href="https://www.google.com/search?q=${encodeURIComponent([c.name, previewQuery.city, "официальный сайт телефон"].join(" "))}" target="_blank" rel="noopener noreferrer">Найти сайт и телефон в интернете</a>${c.website ? `<br>${link(c.website, "Сайт")}` : ""}${c.phone ? `<br><small>☎ ${esc(c.phone)} · формат проверен, дозвон не выполнялся</small>` : `<br><small>Телефон: ${esc(c.phoneStatus || "не предоставлен")}</small>`}</div></div>`).join("")}</div>` : '<p>На этой странице совпадений нет. Попробуй «Любой сайт», другие формулировки или страницу 1.</p>'}
         ${previewQuery.source === "2gis" && !data.contactsAvailable ? '<small>Сайты и телефоны не возвращаются без разрешения 2ГИС на items.contact_groups. Их отсутствие в выдаче не означает отсутствие у компании.</small>' : ""}`;
       document.querySelector("#preview-pagination").hidden = !data.items.length;
       document.querySelector("#preview-page").textContent = `Страница ${page} / ${Math.min(data.maxPage, Math.max(1, Math.ceil(data.total / data.pageSize)))}`;
@@ -310,10 +314,10 @@ async function search() {
       document.querySelector("#preview-count").textContent = "Ошибка";
       document.querySelector("#preview-results").innerHTML = `<p class="error">${esc(err.message)}</p>`;
       document.querySelector("#preview-pagination").hidden = true;
-    } finally { buttons[0].disabled = !dgisEnabled; buttons[1].disabled = !yandexEnabled; }
+    } finally { buttons[0].disabled = !dgisEnabled; }
   }
   document.querySelector("#preview-2gis").onclick = () => preview(1, "2gis");
-  document.querySelector("#preview-yandex").onclick = () => preview(1, "yandex");
+
   document.querySelector("#import-form").onsubmit = async e => {
     e.preventDefault();
     const importForm = e.currentTarget;
@@ -416,6 +420,32 @@ async function crm(version) {
       );
   wireCompanies();
   await renderTasks("#crm-tasks");
+}
+async function inquiries(version) {
+  const [items, tasks] = await Promise.all([api("/inquiries"), api("/tasks")]);
+  if (version !== routeVersion) return;
+  content().innerHTML = `<section class="panel"><div class="panel__header"><h2>Заявки и обращения (${items.length})</h2><small>Создаются внутри карточки компании</small></div>
+    <div class="inquiries-list">${items.length ? items.map(i => `<div class="inquiry-row"><div><strong>${esc(i.title)}</strong><div class="task__date"><button class="table__name" data-company="${esc(i.company.id)}">${esc(i.company.name)}</button> · ${date(i.createdAt)} · ${esc(inquirySources[i.source] || i.source)}</div><p>${esc(i.details)}</p></div><div>${i.amount != null ? `<small>${esc(i.amount)} ₽</small>` : ""}<select data-inquiry="${esc(i.id)}">${options(inquiryStatuses,i.status)}</select></div></div>`).join("") : empty("Заявок пока нет", "Открой карточку компании в базе и добавь первое обращение.")}</div></section>
+    <section class="panel"><h2>Задачи к выполнению (${tasks.length})</h2><div id="inquiries-tasks"></div></section>`;
+  content().querySelectorAll("[data-inquiry]").forEach(select => select.onchange = async () => {
+    try { await api(`/inquiries/${select.dataset.inquiry}`, { method: "PATCH", data: { status: select.value } }); toast("Статус заявки обновлён"); await render(); }
+    catch(e) { toast(e.message); }
+  });
+  wireCompanies();
+  await renderTasks("#inquiries-tasks");
+}
+async function tasks(version) {
+  const leads = await api("/companies?pageSize=100&sort=createdAt&direction=desc");
+  if (version !== routeVersion) return;
+  content().innerHTML = `<section class="panel"><h2>Новая задача</h2><form class="form" id="global-task-form"><div class="form__grid"><label>Организация<select name="companyId" required>${leads.items.map(c => `<option value="${esc(c.id)}">${esc(c.name)} · ${esc(c.city)}</option>`).join("")}</select></label><label>Срок<input name="dueAt" type="datetime-local" required></label></div><label>Что нужно сделать<input name="title" placeholder="Например: позвонить по заявке" required maxlength="300"></label><button ${leads.items.length ? "" : "disabled"}>Создать задачу</button></form>${leads.total > 100 ? '<small>В списке только 100 последних компаний. Задачу для другой компании создайте из её карточки.</small>' : ''}</section><section class="panel"><h2>Открытые задачи</h2><div id="global-tasks"></div></section>`;
+  document.querySelector("#global-task-form").onsubmit = async e => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.currentTarget));
+    data.dueAt = new Date(data.dueAt).toISOString();
+    try { await api("/tasks",{method:"POST",data}); toast("Задача создана"); await render(); }
+    catch(error) { toast(error.message); }
+  };
+  await renderTasks("#global-tasks");
 }
 async function settingsPage() {
   settings = await api("/settings");

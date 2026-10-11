@@ -732,3 +732,12 @@ dialog {
   .niche-group__grid { grid-template-columns: 1fr; }
   .preview-item { flex-direction: column; }
 }
+
+/* CRM inquiries */
+.inquiries-list { display: grid; gap: 12px; margin-top: 14px; }
+.inquiry-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding: 15px; border: 1px solid #e5e9e2; border-radius: 12px; }
+.inquiry-row p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.inquiry-row > div:last-child { display:flex; flex-direction:column; align-items:flex-end; gap:8px; min-width:180px; }
+.inquiry { align-items: flex-start; }
+.inquiry select { max-width:210px; }
+@media(max-width:640px) { .inquiry-row {flex-direction:column;} .inquiry-row > div:last-child {width:100%;align-items:stretch;} .inquiry {flex-direction:column;} .inquiry select {max-width:none;width:100%;} }

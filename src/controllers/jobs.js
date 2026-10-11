@@ -5,7 +5,6 @@ import { parseImport } from "../services/import-parser.js";
 import { getProvider, niches, sourceStatus } from "../providers/index.js";
 import { HttpError } from "../lib/errors.js";
 import { preview2gis } from "../providers/2gis-preview.js";
-import { previewYandex } from "../providers/yandex-preview.js";
 import { searchTerms } from "../providers/niche-catalog.js";
 import { ingestCompany } from "../services/companies.js";
 import { companySchema } from "../validators/company.js";
@@ -26,8 +25,8 @@ const searchSchema = z.object({
 export async function search(req, res) {
   const input = searchSchema.parse(req.body);
   if (input.query && input.query.length < 2) throw new HttpError(400, "Свободный запрос должен содержать хотя бы два символа");
-  if (input.query && input.provider === "osm") throw new HttpError(400, "Свободный запрос поддерживается только через 2ГИС и Яндекс API");
-  if (input.provider === "osm" && input.niches.some(n => !niches[n]?.length)) throw new HttpError(400, "Некоторые выбранные ниши пока не представлены точными тегами OSM; используйте 2ГИС или Яндекс");
+  if (input.query && input.provider === "osm") throw new HttpError(400, "Свободный запрос поддерживается только через 2ГИС Places API");
+  if (input.provider === "osm" && input.niches.some(n => !niches[n]?.length)) throw new HttpError(400, "Некоторые выбранные ниши пока не представлены точными тегами OSM; используйте 2ГИС");
   if (input.provider === "auto" && sourceStatus().filter(s => s.status === "READY" && s.id !== "auto").every(s => s.id === "osm") && (input.limit > 50 || input.niches.length > 3) && process.env.OVERPASS_URL?.includes("overpass-api.de"))
     throw new HttpError(400, "Пробный бесплатный поиск: максимум 50 организаций и 3 ниши");
   if (getProvider(input.provider).status() !== "READY")
@@ -36,7 +35,7 @@ export async function search(req, res) {
 }
 // Online preview. Optional permission-gated import of the returned page into CRM.
 const previewSchema = z.object({
-  source: z.enum(["2gis", "yandex"]).default("2gis"),
+  source: z.literal("2gis").default("2gis"),
   region: z.string().trim().min(2).max(150),
   city: z.string().trim().min(2).max(120),
   query: z.string().trim().max(100).default(""),
@@ -53,7 +52,7 @@ export async function preview(req, res) {
   // Never persist licensed map data unless a separate permission has been configured.
   if (input.save && getProvider(input.source).status() !== "READY")
     throw new HttpError(403, "Сохранение этого источника отключено: отсутствует разрешение на хранение данных");
-  const result = await (input.source === "yandex" ? previewYandex({ ...input, query: term }) : preview2gis({ ...input, query: term }));
+  const result = await preview2gis({ ...input, query: term });
   if (!input.save) return res.json(result);
   const saved = { new: 0, duplicates: 0, errors: 0, auditsQueued: 0 };
   for (const row of result.items) {

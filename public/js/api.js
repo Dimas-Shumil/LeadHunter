@@ -90,3 +90,15 @@ export function toast(message) {
     6000,
   );
 }
+
+export const inquiryStatuses = {
+  NEW: "Новая",
+  IN_PROGRESS: "В работе",
+  WAITING: "Ожидает ответа",
+  WON: "Закрыта успешно",
+  LOST: "Отказ / не состоялась",
+};
+export const inquirySources = {
+  PHONE: "Телефон", TELEGRAM: "Telegram", VK: "ВКонтакте", WHATSAPP: "WhatsApp",
+  EMAIL: "Email", WEBSITE: "Сайт", OTHER: "Другое",
+};

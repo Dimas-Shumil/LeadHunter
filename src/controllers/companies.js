@@ -55,6 +55,7 @@ export async function detail(req, res) {
       audits: { orderBy: { createdAt: "desc" }, take: 10 },
       notes: { orderBy: { createdAt: "desc" }, take: 100 },
       tasks: { orderBy: { dueAt: "asc" }, take: 100 },
+      inquiries: { orderBy: { createdAt: "desc" }, take: 100 },
       history: { orderBy: { createdAt: "desc" }, take: 100 },
       duplicates: { include: { matched: true } },
       matchedDuplicates: { include: { company: true } },

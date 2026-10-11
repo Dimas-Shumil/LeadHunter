@@ -43,13 +43,59 @@ export async function auditWebsite(website) {
         ],
       };
     const $ = cheerio.load(response.body);
-    const websitePhones = [...new Set($('a[href^="tel:"]').toArray()
-      .map(node => inspectPhone($(node).attr("href")))
-      .filter(value => value.state === "format_ok")
-      .map(value => value.value))].slice(0, 10);
+    // Inspect only the organization's own site; never scrape directory contacts.
+    const phoneMap = new Map();
+    const collect = (html, page) => {
+      const root = cheerio.load(html);
+      const found = [];
+      root('a[href^="tel:"], [itemprop="telephone"], meta[property="business:contact_data:phone_number"], [class*="phone"], [class*="tel"]').each((_index, node) => {
+        const value = root(node).attr("href") || root(node).attr("content") || root(node).attr("data-phone") || root(node).text();
+        if (value && value.length < 120) found.push(value);
+      });
+      root('script[type="application/ld+json"]').each((_index, node) => {
+        if (found.length > 70) return;
+        try {
+          const value = JSON.parse(root(node).html() || "null");
+          const walk = (x, depth=0) => {
+            if (!x || depth > 5 || found.length > 70) return;
+            if (Array.isArray(x)) return x.forEach(item => walk(item,depth+1));
+            if (typeof x === "object") {
+              if (typeof x.telephone === "string") found.push(x.telephone);
+              for (const [key,v] of Object.entries(x)) if (key !== "telephone") walk(v,depth+1);
+            }
+          };
+          walk(value);
+        } catch { /* Ignore invalid third-party JSON-LD */ }
+      });
+      for (const raw of found) {
+        const result = inspectPhone(raw);
+        if (result.state === "format_ok" && !phoneMap.has(result.value)) phoneMap.set(result.value, page);
+      }
+      return root;
+    };
+    const root = collect(response.body, response.url);
+    // At most one additional public contact page on the same hostname.
+    // SafeRequest performs DNS pinning, redirect and private-IP checks.
+    let contactHref = null;
+    root('a[href]').each((_i, a) => {
+      if (contactHref) return;
+      if (!/контакт|связаться|contacts?|reach.us/i.test(root(a).text() + " " + (root(a).attr("href") || ""))) return;
+      try {
+        const u = new URL(root(a).attr("href"), response.url);
+        if (u.hostname === new URL(response.url).hostname && u.href !== response.url && !u.hash && !/\.(?:pdf|jpg|png|zip)$/i.test(u.pathname)) contactHref = u.href;
+      } catch {}
+    });
+    if (contactHref && phoneMap.size < 2) {
+      try {
+        const contact = await safeRequest(contactHref,{timeout:9000,maxBytes:500000,maxRedirects:2});
+        if (new URL(contact.url).hostname === new URL(response.url).hostname && contact.status === 200 && String(contact.headers["content-type"] || "").includes("text/html")) collect(contact.body,contact.url);
+      } catch { /* An unavailable contacts page must not fail the whole audit */ }
+    }
+    const websitePhones = [...phoneMap.keys()].slice(0, 10);
     Object.assign(metrics, {
       phoneCandidates: websitePhones,
-      phoneCheck: websitePhones.length ? "Номера найдены в tel: ссылках сайта; доступность не проверялась" : "Нет пригодных tel: ссылок",
+      phoneSources: Object.fromEntries([...phoneMap.entries()].slice(0, 10)),
+      phoneCheck: websitePhones.length ? "Контакты найдены на сайте компании; доступность номеров не проверялась" : "Контакты на проверенных страницах сайта не обнаружены",
       title: $("title").text().trim(),
       description: $('meta[name="description"]').attr("content")?.trim() || "",
       h1Count: $("h1").length,

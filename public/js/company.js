@@ -7,6 +7,8 @@ import {
   websiteStatuses,
   options,
   toast,
+  inquiryStatuses,
+  inquirySources,
 } from "./api.js";
 const modal = document.querySelector("#modal");
 const labels = {
@@ -45,7 +47,7 @@ const auditHtml = (c) =>
         .slice(0, 3)
         .map(
           (a) =>
-            `<div class="audit"><strong>${esc(websiteStatuses[a.status])}</strong> <small>${date(a.createdAt)}${a.website !== c.website ? " · предыдущий URL" : ""}</small><p>${link(a.metrics.finalUrl || a.website)} · HTTP ${esc(a.metrics.statusCode || "—")} · HTTPS ${a.metrics.https === true ? "да" : a.metrics.https === false ? "нет" : "не определено"}</p><p>Viewport: ${esc(a.metrics.viewport || "—")} · H1: ${esc(a.metrics.h1Count ?? "—")} · Формы: ${esc(a.metrics.forms ?? "—")}</p><p>Title: ${esc(a.metrics.title || "—")}<br>Description: ${esc(a.metrics.description || "—")}</p><p>Мобильная проверка: ${esc(a.metrics.browser?.state)} ${esc(a.metrics.browser?.reason || "")}<br>Lighthouse: ${a.metrics.lighthouse?.performance !== undefined ? esc(JSON.stringify(a.metrics.lighthouse)) : esc(a.metrics.lighthouse?.state || "не выполнен")}</p><ul>${a.issues.map((i) => `<li>${esc(i.label)}</li>`).join("")}</ul></div>`,
+            `<div class="audit"><strong>${esc(websiteStatuses[a.status])}</strong> <small>${date(a.createdAt)}${a.website !== c.website ? " · предыдущий URL" : ""}</small><p>${link(a.metrics.finalUrl || a.website)} · HTTP ${esc(a.metrics.statusCode || "—")} · HTTPS ${a.metrics.https === true ? "да" : a.metrics.https === false ? "нет" : "не определено"}</p><p>Viewport: ${esc(a.metrics.viewport || "—")} · H1: ${esc(a.metrics.h1Count ?? "—")} · Формы: ${esc(a.metrics.forms ?? "—")}</p><p>Номера, обнаруженные на сайте: ${(a.metrics.phoneCandidates || []).length ? a.metrics.phoneCandidates.map(p => esc(p)).join(", ") : "не найдены"} (дозвон не проверялся)</p><p>Title: ${esc(a.metrics.title || "—")}<br>Description: ${esc(a.metrics.description || "—")}</p><p>Мобильная проверка: ${esc(a.metrics.browser?.state)} ${esc(a.metrics.browser?.reason || "")}<br>Lighthouse: ${a.metrics.lighthouse?.performance !== undefined ? esc(JSON.stringify(a.metrics.lighthouse)) : esc(a.metrics.lighthouse?.state || "не выполнен")}</p><ul>${a.issues.map((i) => `<li>${esc(i.label)}</li>`).join("")}</ul></div>`,
         )
         .join("")
     : "<p><small>Проверок пока нет.</small></p>";
@@ -69,7 +71,7 @@ export async function openCompany(id, onSaved) {
     )
     .join(
       "",
-    )}</details><p class="error" id="company-error"></p><button type="submit">Сохранить компанию</button></form>${id ? `<hr><h3>Заметки</h3><form id="note-form" class="form"><label>Новая заметка<textarea name="text" required maxlength="4000"></textarea></label><button>Добавить заметку</button></form>${c.notes.map((n) => `<div class="note"><small>${date(n.createdAt)}</small><p>${esc(n.text)}</p></div>`).join("")}<h3>Задачи</h3><form id="task-form" class="form"><label>Что сделать<input name="title" required maxlength="300"></label><label>Срок<input name="dueAt" type="datetime-local" required></label><button>Создать задачу</button></form>${c.tasks.map((t) => `<div class="task"><div><strong>${esc(t.title)}</strong><div class="task__date">${date(t.dueAt)}</div></div><button type="button" data-task="${esc(t.id)}" data-done="${t.done}">${t.done ? "Вернуть" : "Выполнить"}</button></div>`).join("")}` : ""}</div><aside>${id ? `<div class="panel"><h2>Lead Score · ${c.score}/100</h2>${c.scoreDetails.map((p) => `<div class="score-part"><strong>${esc(p.label)}<span>${p.points}/${p.max}</span></strong><p>${esc(p.state)} · ${esc(p.reason)}</p></div>`).join("")}</div><div class="panel"><div class="panel__header"><h2>Проверка сайта</h2><button id="audit-company" type="button" ${c.website ? "" : "disabled"}>Проверить</button></div>${auditHtml(c)}</div><div class="panel"><h2>Источники</h2>${c.sources.map((s) => `<p>${esc(s.provider)} · ${link(s.sourceUrl, "Первоисточник")}<br><small>${esc(s.license)} · ${date(s.updatedAt)}</small></p>`).join("")}</div>${duplicateHtml(c)}<div class="panel"><h2>История</h2>${c.history.map((h) => `<div class="history">${date(h.createdAt)} · ${esc({ CREATED: "Создана", EDITED: "Карточка изменена", AUDITED: "Сайт проверен", NOTE: "Добавлена заметка", MERGED: "Компании объединены", TASK_CREATED: "Задача создана", TASK_UPDATED: "Задача изменена" }[h.type] || h.type)}${h.type === "EDITED" ? `<br>${esc(h.details.fields?.join(", "))}` : ""}</div>`).join("")}</div>` : '<div class="notice">Добавьте известные сведения. Оценка появится после сохранения; неподтверждённые признаки не добавляют баллы.</div>'}</aside></div></div>`;
+    )}</details><p class="error" id="company-error"></p><button type="submit">Сохранить компанию</button></form>${id ? `<hr><h3>Заметки</h3><form id="note-form" class="form"><label>Новая заметка<textarea name="text" required maxlength="4000"></textarea></label><button>Добавить заметку</button></form>${c.notes.map((n) => `<div class="note"><small>${date(n.createdAt)}</small><p>${esc(n.text)}</p></div>`).join("")}<h3>Заявки / обращения</h3><form id="inquiry-form" class="form"><label>Заголовок заявки<input name="title" required minlength="2" maxlength="200" placeholder="Например: Интерес к мини-платформе"></label><div class="form__grid"><label>Канал<select name="source">${options(inquirySources, "PHONE")}</select></label><label>Ожидаемая сумма, ₽<input name="amount" type="number" min="0" max="100000000" placeholder="30000"></label></div><label>Комментарий<textarea name="details" maxlength="4000" placeholder="Что обсуждали и что требуется"></textarea></label><button>Записать заявку</button></form>${(c.inquiries || []).map(i => `<div class="task inquiry"><div><strong>${esc(i.title)}</strong><div class="task__date">${date(i.createdAt)} · ${esc(inquirySources[i.source] || i.source)}${i.amount != null ? " · "+esc(i.amount)+" ₽" : ""}</div><small>${esc(i.details)}</small></div><select data-inquiry="${esc(i.id)}" aria-label="Статус заявки">${options(inquiryStatuses,i.status)}</select></div>`).join("")}<h3>Задачи</h3><form id="task-form" class="form"><label>Что сделать<input name="title" required maxlength="300"></label><label>Срок<input name="dueAt" type="datetime-local" required></label><button>Создать задачу</button></form>${c.tasks.map((t) => `<div class="task"><div><strong>${esc(t.title)}</strong><div class="task__date">${date(t.dueAt)}</div></div><button type="button" data-task="${esc(t.id)}" data-done="${t.done}">${t.done ? "Вернуть" : "Выполнить"}</button></div>`).join("")}` : ""}</div><aside>${id ? `<div class="panel"><h2>Lead Score · ${c.score}/100</h2>${c.scoreDetails.map((p) => `<div class="score-part"><strong>${esc(p.label)}<span>${p.points}/${p.max}</span></strong><p>${esc(p.state)} · ${esc(p.reason)}</p></div>`).join("")}</div><div class="panel"><div class="panel__header"><h2>Проверка сайта</h2><button id="audit-company" type="button" ${c.website ? "" : "disabled"}>Проверить</button></div>${auditHtml(c)}</div><div class="panel"><h2>Источники</h2>${c.sources.map((s) => `<p>${esc(s.provider)} · ${link(s.sourceUrl, "Первоисточник")}<br><small>${esc(s.license)} · ${date(s.updatedAt)}</small></p>`).join("")}</div>${duplicateHtml(c)}<div class="panel"><h2>История</h2>${c.history.map((h) => `<div class="history">${date(h.createdAt)} · ${esc({ CREATED: "Создана", EDITED: "Карточка изменена", AUDITED: "Сайт проверен", NOTE: "Добавлена заметка", MERGED: "Компании объединены", TASK_CREATED: "Задача создана", TASK_UPDATED: "Задача изменена", INQUIRY_CREATED: "Заявка создана", INQUIRY_UPDATED: "Статус заявки изменён" }[h.type] || h.type)}${h.type === "EDITED" ? `<br>${esc(h.details.fields?.join(", "))}` : ""}</div>`).join("")}</div>` : '<div class="notice">Добавьте известные сведения. Оценка появится после сохранения; неподтверждённые признаки не добавляют баллы.</div>'}</aside></div></div>`;
   modal.querySelector("#close-modal").onclick = () => modal.close();
   if (!modal.open) modal.showModal();
   modal.querySelector("#company-form").onsubmit = async (e) => {
@@ -111,6 +113,25 @@ export async function openCompany(id, onSaved) {
       toast(err.message);
     }
   };
+  modal.querySelector("#inquiry-form").onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const form = e.currentTarget;
+      const data = Object.fromEntries(new FormData(form));
+      data.amount = data.amount === "" ? null : Number(data.amount);
+      await api(`/companies/${id}/inquiries`, { method: "POST", data });
+      toast("Заявка добавлена");
+      await onSaved?.();
+      await openCompany(id, onSaved);
+    } catch (err) { toast(err.message); }
+  };
+  modal.querySelectorAll("[data-inquiry]").forEach(el => el.onchange = async () => {
+    try {
+      await api(`/inquiries/${el.dataset.inquiry}`, { method: "PATCH", data: { status: el.value } });
+      await onSaved?.();
+      await openCompany(id, onSaved);
+    } catch(err) { toast(err.message); }
+  });
   modal.querySelector("#task-form").onsubmit = async (e) => {
     e.preventDefault();
     try {

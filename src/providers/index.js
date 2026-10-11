@@ -1,18 +1,17 @@
 import { osmProvider, niches, isPublicPilot } from "./osm.js";
 import { dgisProvider } from "./2gis.js";
-import { yandexProvider } from "./yandex.js";
 import { HttpError } from "../lib/errors.js";
 
 // Order matters: paid map sources are first, OSM is the free fallback.
-export const providers = [dgisProvider, yandexProvider, osmProvider];
+export const providers = [dgisProvider, osmProvider];
 const autoProvider = {
   id: "auto",
-  name: "Автопоиск (2ГИС → Яндекс → OSM)",
+  name: "Автопоиск (2ГИС → OSM)",
   status: () => providers.some(p => p.status() === "READY") ? "READY" : "NOT_CONFIGURED",
   note: () => "Поиск по доступным источникам в порядке приоритета. Если ключей нет, используется бесплатный OSM.",
   async search(input) {
     if (input.query && !providers.some(p => p.id !== "osm" && p.status() === "READY"))
-      throw new HttpError(400, "Свободный запрос требует подключённого 2ГИС или Яндекс API с правом работы в CRM");
+      throw new HttpError(400, "Свободный запрос требует подключённого 2ГИС API с правом работы в CRM");
     const results = [];
     const errors = [];
     let used = 0;
